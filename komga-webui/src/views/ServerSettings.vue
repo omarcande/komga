@@ -163,6 +163,32 @@
           </template>
         </v-text-field>
 
+        <v-divider class="my-6" />
+
+        <span class="text-subtitle-1">{{ $t('server_settings.gemini_section') }}</span>
+
+        <v-checkbox
+          v-model="form.geminiEnabled"
+          @change="$v.form.geminiEnabled.$touch()"
+          :label="$t('server_settings.label_gemini_enabled')"
+          hide-details
+          class="mt-4"
+        />
+
+        <v-text-field
+          v-model="form.geminiApiKey"
+          @input="$v.form.geminiApiKey.$touch()"
+          @blur="$v.form.geminiApiKey.$touch()"
+          :label="$t('server_settings.label_gemini_api_key')"
+          :hint="existingSettings.geminiApiKeySet ? $t('server_settings.hint_gemini_api_key_set') : $t('server_settings.hint_gemini_api_key_not_set')"
+          persistent-hint
+          :type="showGeminiApiKey ? 'text' : 'password'"
+          :append-icon="showGeminiApiKey ? 'mdi-eye' : 'mdi-eye-off'"
+          @click:append="showGeminiApiKey = !showGeminiApiKey"
+          clearable
+          class="mt-4"
+        />
+
       </v-col>
     </v-row>
     <v-row>
@@ -219,10 +245,13 @@ export default Vue.extend({
       koboProxy: false,
       koboPort: undefined,
       kepubifyPath: undefined,
+      geminiEnabled: false,
+      geminiApiKey: undefined as string | undefined,
     },
     existingSettings: {} as SettingsDto,
     dialogRegenerateThumbnails: false,
     modalFileBrowserKepubify: false,
+    showGeminiApiKey: false,
   }),
   validations: {
     form: {
@@ -251,6 +280,8 @@ export default Vue.extend({
         maxValue: maxValue(65535),
       },
       kepubifyPath: {},
+      geminiEnabled: {},
+      geminiApiKey: {},
     },
   },
   mounted() {
@@ -309,6 +340,8 @@ export default Vue.extend({
       this.form.serverPort = settings.serverPort.databaseSource
       this.form.serverContextPath = settings.serverContextPath.databaseSource
       this.form.kepubifyPath = settings.kepubifyPath.databaseSource
+      this.form.geminiEnabled = settings.geminiEnabled
+      this.form.geminiApiKey = undefined // Don't load API key - only show if set
       this.$_.merge(this.existingSettings, settings)
       this.$v.form.$reset()
     },
@@ -342,6 +375,10 @@ export default Vue.extend({
       if (this.$v.form?.kepubifyPath?.$dirty)
         this.$_.merge(newSettings, {kepubifyPath: this.form.kepubifyPath})
 
+      if (this.$v.form?.geminiEnabled?.$dirty)
+        this.$_.merge(newSettings, {geminiEnabled: this.form.geminiEnabled})
+      if (this.$v.form?.geminiApiKey?.$dirty)
+        this.$_.merge(newSettings, {geminiApiKey: this.form.geminiApiKey})
 
       await this.$komgaSettings.updateSettings(newSettings)
       await this.refreshSettings()

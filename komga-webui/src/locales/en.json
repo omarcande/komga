@@ -166,10 +166,25 @@
       "show_hide_settings": "Show/hide settings menu",
       "show_hide_thumbnails": "Show/hide thumbnails explorer",
       "show_hide_toolbars": "Show/hide toolbars",
+      "show_hide_gemini": "Show/hide Japanese analysis",
       "vertical": "Vertical",
       "webtoon": "Webtoon"
     },
-    "tooltip_incognito": "Read progress will not be saved"
+    "tooltip_incognito": "Read progress will not be saved",
+    "gemini_analysis": "Japanese Text Analysis",
+    "analyzing_page": "Analyzing page with AI...",
+    "gemini": {
+      "sentences": "Sentences",
+      "phrases": "Phrases",
+      "vocabulary": "Vocabulary",
+      "hiragana": "Hiragana",
+      "romanji": "Romanji",
+      "explanation": "Grammar Breakdown",
+      "comments": "Notes",
+      "meaning": "Meaning",
+      "alt_translations": "Alternative Translations",
+      "no_content": "No Japanese text detected in this image."
+    }
   },
   "browse_book": {
     "comment": "COMMENT",
@@ -989,9 +1004,14 @@
       "btn_confirm": "Yes, but only if bigger",
       "title": "Regenerate thumbnails"
     },
+    "gemini_section": "Gemini AI Integration",
+    "hint_gemini_api_key_not_set": "API key not configured",
+    "hint_gemini_api_key_set": "API key is configured",
     "hint_kobo_port": "Set only in case of sync issues with covers and downloads",
     "label_delete_empty_collections": "Delete empty collections after scan",
     "label_delete_empty_readlists": "Delete empty read lists after scan",
+    "label_gemini_api_key": "Gemini API Key",
+    "label_gemini_enabled": "Enable Gemini Japanese text analysis",
     "label_kepubify_path": "Path to kepubify",
     "label_kobo_port": "Kobo Sync external port",
     "label_kobo_proxy": "Proxy Kobo Sync requests to Kobo Store",

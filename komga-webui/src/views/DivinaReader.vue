@@ -48,6 +48,12 @@
           </v-btn>
           <v-btn
             icon
+            @click="showGeminiAnalysis = !showGeminiAnalysis"
+          >
+            <v-icon>mdi-translate</v-icon>
+          </v-btn>
+          <v-btn
+            icon
             @click="showSettings = !showSettings"
           >
             <v-icon>mdi-cog</v-icon>
@@ -156,6 +162,12 @@
       @go="goTo"
       :pagesCount="pagesCount"
     ></thumbnail-explorer-dialog>
+
+    <gemini-analysis-dialog
+      v-model="showGeminiAnalysis"
+      :bookId="bookId"
+      :pageNumber="page"
+    ></gemini-analysis-dialog>
 
     <v-bottom-sheet
       v-model="showSettings"
@@ -321,6 +333,7 @@ import SettingsSelect from '@/components/SettingsSelect.vue'
 import SettingsSwitch from '@/components/SettingsSwitch.vue'
 import ThumbnailExplorerDialog from '@/components/dialogs/ThumbnailExplorerDialog.vue'
 import ShortcutHelpDialog from '@/components/dialogs/ShortcutHelpDialog.vue'
+import GeminiAnalysisDialog from '@/components/dialogs/GeminiAnalysisDialog.vue'
 import {getBookTitleCompact} from '@/functions/book-title'
 import {checkImageSupport, ImageFeature} from '@/functions/check-image'
 import {bookPageUrl} from '@/functions/urls'
@@ -358,6 +371,7 @@ export default Vue.extend({
     SettingsSelect,
     ThumbnailExplorerDialog,
     ShortcutHelpDialog,
+    GeminiAnalysisDialog,
   },
   data: function () {
     return {
@@ -386,6 +400,7 @@ export default Vue.extend({
       showToolbars: false,
       showSettings: false,
       showHelp: false,
+      showGeminiAnalysis: false,
       goToPage: 1,
       settings: {
         pageLayout: PagedReaderLayout.SINGLE_PAGE,
@@ -875,9 +890,16 @@ export default Vue.extend({
     toggleHelp() {
       this.showHelp = !this.showHelp
     },
+    toggleGeminiAnalysis() {
+      this.showGeminiAnalysis = !this.showGeminiAnalysis
+    },
     closeDialog() {
       if (this.showExplorer) {
         this.showExplorer = false
+        return
+      }
+      if (this.showGeminiAnalysis) {
+        this.showGeminiAnalysis = false
         return
       }
       if (this.showSettings) {

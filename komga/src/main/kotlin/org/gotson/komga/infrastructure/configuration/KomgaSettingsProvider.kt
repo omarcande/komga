@@ -112,6 +112,23 @@ class KomgaSettingsProvider(
       field = value
       eventPublisher.publishEvent(SettingChangedEvent.KepubifyPath)
     }
+
+  var geminiEnabled: Boolean =
+    serverSettingsDao.getSettingByKey(Settings.GEMINI_ENABLED.name, Boolean::class.java) ?: false
+    set(value) {
+      serverSettingsDao.saveSetting(Settings.GEMINI_ENABLED.name, value)
+      field = value
+    }
+
+  var geminiApiKey: String? =
+    serverSettingsDao.getSettingByKey(Settings.GEMINI_API_KEY.name, String::class.java)?.ifBlank { null }
+    set(value) {
+      if (value != null)
+        serverSettingsDao.saveSetting(Settings.GEMINI_API_KEY.name, value)
+      else
+        serverSettingsDao.deleteSetting(Settings.GEMINI_API_KEY.name)
+      field = value
+    }
 }
 
 private enum class Settings {
@@ -126,4 +143,6 @@ private enum class Settings {
   KOBO_PROXY,
   KOBO_PORT,
   KEPUBIFY_PATH,
+  GEMINI_ENABLED,
+  GEMINI_API_KEY,
 }

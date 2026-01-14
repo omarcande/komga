@@ -35,6 +35,9 @@ export const shortcutsMenus = [
   new Shortcut('bookreader.shortcuts.show_hide_help',
     (ctx: any) => ctx.toggleHelp()
     , 'h'),
+  new Shortcut('bookreader.shortcuts.show_hide_gemini',
+    (ctx: any) => ctx.toggleGeminiAnalysis()
+    , 'g'),
   new Shortcut('bookreader.shortcuts.close',
     (ctx: any) => ctx.closeDialog()
     , 'Escape'),

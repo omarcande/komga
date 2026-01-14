@@ -51,4 +51,11 @@ class SettingsUpdateDto {
     by Delegates.observable(null) { prop, _, _ ->
       isSet[prop.name] = true
     }
+
+  var geminiEnabled: Boolean? = null
+
+  var geminiApiKey: String?
+    by Delegates.observable(null) { prop, _, _ ->
+      isSet[prop.name] = true
+    }
 }

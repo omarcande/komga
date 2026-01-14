@@ -33,6 +33,7 @@ import org.gotson.komga.domain.persistence.ReadListRepository
 import org.gotson.komga.domain.persistence.ThumbnailBookRepository
 import org.gotson.komga.domain.service.BookAnalyzer
 import org.gotson.komga.domain.service.BookLifecycle
+import org.gotson.komga.infrastructure.gemini.GeminiService
 import org.gotson.komga.infrastructure.image.ImageAnalyzer
 import org.gotson.komga.infrastructure.jooq.UnpagedSorted
 import org.gotson.komga.infrastructure.mediacontainer.ContentDetector
@@ -52,6 +53,7 @@ import org.gotson.komga.interfaces.api.dto.WPPublicationDto
 import org.gotson.komga.interfaces.api.getBookLastModified
 import org.gotson.komga.interfaces.api.persistence.BookDtoRepository
 import org.gotson.komga.interfaces.api.rest.dto.BookDto
+import org.gotson.komga.interfaces.api.rest.dto.GeminiAnalysisDto
 import org.gotson.komga.interfaces.api.rest.dto.BookImportBatchDto
 import org.gotson.komga.interfaces.api.rest.dto.BookMetadataUpdateDto
 import org.gotson.komga.interfaces.api.rest.dto.PageDto
@@ -115,6 +117,7 @@ class BookController(
   private val webPubGenerator: WebPubGenerator,
   private val contentRestrictionChecker: ContentRestrictionChecker,
   private val commonBookController: CommonBookController,
+  private val geminiService: GeminiService,
 ) {
   @Deprecated("use /v1/books/list instead")
   @PageableAsQueryParam
@@ -534,6 +537,41 @@ class BookController(
         throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found, it may have moved")
       }
     } ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+
+  @Operation(summary = "Analyze book page with Gemini AI", description = "Uses Gemini AI to analyze Japanese text on a book page.", tags = [OpenApiConfiguration.TagNames.BOOK_PAGES])
+  @PostMapping("api/v1/books/{bookId}/pages/{pageNumber}/analyze")
+  fun analyzeBookPageWithGemini(
+    @AuthenticationPrincipal principal: KomgaPrincipal,
+    @PathVariable bookId: String,
+    @PathVariable pageNumber: Int,
+  ): GeminiAnalysisDto {
+    if (!geminiService.isEnabled()) {
+      throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Gemini analysis is not configured")
+    }
+
+    val book =
+      bookRepository.findByIdOrNull(bookId)
+        ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+
+    contentRestrictionChecker.checkContentRestriction(principal.user, book)
+
+    val media = mediaRepository.findById(book.id)
+    if (media.status != Media.Status.READY) {
+      throw ResponseStatusException(HttpStatus.NOT_FOUND, "Book analysis not ready")
+    }
+
+    return try {
+      val pageContent = bookLifecycle.getBookPage(book, pageNumber)
+      geminiService.analyzeImage(pageContent.bytes, pageContent.mediaType ?: "image/jpeg", bookId, pageNumber)
+    } catch (ex: IndexOutOfBoundsException) {
+      throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Page number does not exist")
+    } catch (ex: MediaNotReadyException) {
+      throw ResponseStatusException(HttpStatus.NOT_FOUND, "Book analysis failed")
+    } catch (ex: NoSuchFileException) {
+      logger.warn(ex) { "File not found: $book" }
+      throw ResponseStatusException(HttpStatus.NOT_FOUND, "File not found, it may have moved")
+    }
+  }
 
   @Operation(summary = "Get book's WebPub manifest", tags = [OpenApiConfiguration.TagNames.BOOK_WEBPUB])
   @GetMapping(

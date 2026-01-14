@@ -9,6 +9,8 @@ export interface SettingsDto {
   koboProxy: boolean,
   koboPort?: number,
   kepubifyPath: SettingMultiSource<string>,
+  geminiEnabled: boolean,
+  geminiApiKeySet: boolean,
 }
 
 export interface SettingMultiSource<T> {
@@ -29,6 +31,8 @@ export interface SettingsUpdateDto {
   koboProxy?: boolean,
   koboPort?: number,
   kepubifyPath?: string,
+  geminiEnabled?: boolean,
+  geminiApiKey?: string,
 }
 
 export enum ThumbnailSizeDto {

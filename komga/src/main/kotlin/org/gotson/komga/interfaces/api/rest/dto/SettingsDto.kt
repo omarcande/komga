@@ -11,6 +11,8 @@ data class SettingsDto(
   val koboProxy: Boolean,
   val koboPort: Int?,
   val kepubifyPath: SettingMultiSource<String?>,
+  val geminiEnabled: Boolean,
+  val geminiApiKeySet: Boolean,
 )
 
 data class SettingMultiSource<T>(
