@@ -118,7 +118,7 @@ class GeminiService(
   companion object {
     const val GEMINI_MODEL = "gemini-2.5-flash"
     const val ANALYSIS_PROMPT =
-      """You are a Japanese language tutor analyzing a screenshot from a video game.
+      """You are a Japanese language tutor analyzing a page from a manga.
 
 Analyze any Japanese text visible in this image and return your analysis as a JSON object.
 

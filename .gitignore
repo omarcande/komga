@@ -39,6 +39,9 @@ node_modules
 ### Claude
 .claude/
 
+### Environment files
+.env/
+
 ### IntelliJ Fleet
 .fleet/
 
