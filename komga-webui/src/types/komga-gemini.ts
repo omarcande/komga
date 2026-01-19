@@ -1,24 +1,25 @@
 export interface GeminiAnalysisDto {
-  sentences: SentenceDto[]
-  phrases: PhraseDto[]
+  panels: PanelDto[]
   vocabulary: VocabularyDto[]
+  pageSummary?: string
   error?: string
 }
 
-export interface SentenceDto {
+export interface PanelDto {
+  panelNumber: number
+  description?: string
+  context?: string
+  dialogues: DialogueDto[]
+}
+
+export interface DialogueDto {
+  speakerHint?: string
   original: string
   hiragana: string
   romanji: string
   translations: string[]
   explanation: string
   comments?: string
-}
-
-export interface PhraseDto {
-  original: string
-  hiragana: string
-  romanji: string
-  translation: string
 }
 
 export interface VocabularyDto {

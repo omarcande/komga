@@ -29,74 +29,102 @@
             {{ analysis.error }}
           </v-alert>
 
-          <!-- Sentences Section -->
-          <div v-if="analysis.sentences && analysis.sentences.length > 0">
-            <h3 class="text-h6 mb-2">{{ $t('bookreader.gemini.sentences') }}</h3>
-            <v-expansion-panels accordion class="mb-4">
-              <v-expansion-panel v-for="(sentence, i) in analysis.sentences" :key="'s-' + i">
-                <v-expansion-panel-header>
-                  <div>
-                    <div class="text-subtitle-1 japanese-text">{{ sentence.original }}</div>
-                    <div class="text-caption" v-if="sentence.translations && sentence.translations.length > 0">
-                      {{ sentence.translations[0] }}
-                    </div>
-                  </div>
-                </v-expansion-panel-header>
-                <v-expansion-panel-content>
-                  <div class="mb-2">
-                    <strong>{{ $t('bookreader.gemini.hiragana') }}:</strong>
-                    <span class="japanese-text ml-2">{{ sentence.hiragana }}</span>
-                  </div>
-                  <div class="mb-2">
-                    <strong>{{ $t('bookreader.gemini.romanji') }}:</strong>
-                    <span class="ml-2">{{ sentence.romanji }}</span>
-                  </div>
-                  <div v-if="sentence.translations && sentence.translations.length > 1" class="mb-2">
-                    <strong>{{ $t('bookreader.gemini.alt_translations') }}:</strong>
-                    <ul class="ml-4">
-                      <li v-for="(trans, ti) in sentence.translations.slice(1)" :key="ti">{{ trans }}</li>
-                    </ul>
-                  </div>
-                  <div v-if="sentence.explanation" class="mb-2">
-                    <strong>{{ $t('bookreader.gemini.explanation') }}:</strong>
-                    <div class="explanation-content mt-1" v-html="renderMarkdown(sentence.explanation)"></div>
-                  </div>
-                  <div v-if="sentence.comments" class="mb-2">
-                    <strong>{{ $t('bookreader.gemini.comments') }}:</strong>
-                    <div class="mt-1">{{ sentence.comments }}</div>
-                  </div>
-                </v-expansion-panel-content>
-              </v-expansion-panel>
-            </v-expansion-panels>
-          </div>
+          <!-- Page Summary -->
+          <v-alert
+            v-if="analysis.pageSummary"
+            type="info"
+            text
+            dense
+            class="mb-4"
+          >
+            <div class="text-subtitle-2 mb-1">{{ $t('bookreader.gemini.page_summary') }}</div>
+            <div>{{ analysis.pageSummary }}</div>
+          </v-alert>
 
-          <!-- Phrases Section -->
-          <div v-if="analysis.phrases && analysis.phrases.length > 0">
-            <h3 class="text-h6 mb-2">{{ $t('bookreader.gemini.phrases') }}</h3>
-            <v-expansion-panels accordion class="mb-4">
-              <v-expansion-panel v-for="(phrase, i) in analysis.phrases" :key="'p-' + i">
-                <v-expansion-panel-header>
-                  <div class="d-flex align-center">
-                    <span class="text-subtitle-1 japanese-text mr-2">{{ phrase.original }}</span>
-                    <span class="text-caption">- {{ phrase.translation }}</span>
+          <!-- Panels Section -->
+          <div v-if="analysis.panels && analysis.panels.length > 0">
+            <div v-for="panel in analysis.panels" :key="'panel-' + panel.panelNumber" class="mb-4">
+              <v-card outlined class="panel-card">
+                <v-card-title class="py-2 px-4">
+                  <v-icon small class="mr-2">mdi-image-frame</v-icon>
+                  {{ $t('bookreader.gemini.panel') }} {{ panel.panelNumber }}
+                </v-card-title>
+                <v-card-text class="py-2 px-4">
+                  <!-- Panel Description -->
+                  <div v-if="panel.description" class="mb-2">
+                    <span class="text-caption text--secondary">{{ $t('bookreader.gemini.scene') }}:</span>
+                    <span class="ml-1">{{ panel.description }}</span>
                   </div>
-                </v-expansion-panel-header>
-                <v-expansion-panel-content>
-                  <div class="mb-2">
-                    <strong>{{ $t('bookreader.gemini.hiragana') }}:</strong>
-                    <span class="japanese-text ml-2">{{ phrase.hiragana }}</span>
+
+                  <!-- Panel Context -->
+                  <div v-if="panel.context" class="mb-3">
+                    <span class="text-caption text--secondary">{{ $t('bookreader.gemini.panel_context') }}:</span>
+                    <span class="ml-1 font-italic">{{ panel.context }}</span>
                   </div>
-                  <div class="mb-2">
-                    <strong>{{ $t('bookreader.gemini.romanji') }}:</strong>
-                    <span class="ml-2">{{ phrase.romanji }}</span>
+
+                  <!-- Dialogues -->
+                  <div v-if="panel.dialogues && panel.dialogues.length > 0">
+                    <v-expansion-panels accordion flat class="dialogue-panels">
+                      <v-expansion-panel
+                        v-for="(dialogue, di) in panel.dialogues"
+                        :key="'d-' + panel.panelNumber + '-' + di"
+                      >
+                        <v-expansion-panel-header class="py-2">
+                          <div>
+                            <v-chip
+                              v-if="dialogue.speakerHint"
+                              x-small
+                              color="secondary"
+                              class="mr-2"
+                            >
+                              {{ dialogue.speakerHint }}
+                            </v-chip>
+                            <span class="text-subtitle-1 japanese-text">{{ dialogue.original }}</span>
+                            <div class="text-caption mt-1" v-if="dialogue.translations && dialogue.translations.length > 0">
+                              {{ dialogue.translations[0] }}
+                            </div>
+                          </div>
+                        </v-expansion-panel-header>
+                        <v-expansion-panel-content>
+                          <div class="mb-2">
+                            <strong>{{ $t('bookreader.gemini.hiragana') }}:</strong>
+                            <span class="japanese-text ml-2">{{ dialogue.hiragana }}</span>
+                          </div>
+                          <div class="mb-2">
+                            <strong>{{ $t('bookreader.gemini.romanji') }}:</strong>
+                            <span class="ml-2">{{ dialogue.romanji }}</span>
+                          </div>
+                          <div v-if="dialogue.translations && dialogue.translations.length > 1" class="mb-2">
+                            <strong>{{ $t('bookreader.gemini.alt_translations') }}:</strong>
+                            <ul class="ml-4">
+                              <li v-for="(trans, ti) in dialogue.translations.slice(1)" :key="ti">{{ trans }}</li>
+                            </ul>
+                          </div>
+                          <div v-if="dialogue.explanation" class="mb-2">
+                            <strong>{{ $t('bookreader.gemini.explanation') }}:</strong>
+                            <div class="explanation-content mt-1" v-html="renderMarkdown(dialogue.explanation)"></div>
+                          </div>
+                          <div v-if="dialogue.comments" class="mb-2">
+                            <strong>{{ $t('bookreader.gemini.comments') }}:</strong>
+                            <div class="mt-1">{{ dialogue.comments }}</div>
+                          </div>
+                        </v-expansion-panel-content>
+                      </v-expansion-panel>
+                    </v-expansion-panels>
                   </div>
-                </v-expansion-panel-content>
-              </v-expansion-panel>
-            </v-expansion-panels>
+
+                  <!-- No Dialogue -->
+                  <div v-else class="text-caption text--secondary font-italic">
+                    {{ $t('bookreader.gemini.no_dialogue') }}
+                  </div>
+                </v-card-text>
+              </v-card>
+            </div>
           </div>
 
           <!-- Vocabulary Section -->
-          <div v-if="analysis.vocabulary && analysis.vocabulary.length > 0">
+          <div v-if="analysis.vocabulary && analysis.vocabulary.length > 0" class="mt-4">
+            <v-divider class="mb-4" />
             <h3 class="text-h6 mb-2">{{ $t('bookreader.gemini.vocabulary') }}</h3>
             <v-expansion-panels accordion>
               <v-expansion-panel v-for="(vocab, i) in analysis.vocabulary" :key="'v-' + i">
@@ -173,8 +201,7 @@ export default Vue.extend({
     hasContent(): boolean {
       if (!this.analysis) return false
       return (
-        (this.analysis.sentences?.length ?? 0) > 0 ||
-        (this.analysis.phrases?.length ?? 0) > 0 ||
+        (this.analysis.panels?.length ?? 0) > 0 ||
         (this.analysis.vocabulary?.length ?? 0) > 0
       )
     },
@@ -240,5 +267,21 @@ export default Vue.extend({
 
 .explanation-content :deep(strong) {
   color: #90caf9;
+}
+
+.panel-card {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.dialogue-panels {
+  background: transparent;
+}
+
+.dialogue-panels :deep(.v-expansion-panel) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dialogue-panels :deep(.v-expansion-panel::before) {
+  box-shadow: none;
 }
 </style>

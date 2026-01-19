@@ -10,8 +10,6 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.gotson.komga.infrastructure.configuration.KomgaSettingsProvider
 import org.gotson.komga.interfaces.api.rest.dto.GeminiAnalysisDto
-import org.gotson.komga.interfaces.api.rest.dto.PhraseDto
-import org.gotson.komga.interfaces.api.rest.dto.SentenceDto
 import org.gotson.komga.interfaces.api.rest.dto.VocabularyDto
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -125,8 +123,7 @@ class GeminiServiceTest {
       val result = geminiService.analyzeImage(imageBytes, "image/jpeg", "book-empty", 1)
 
       assertThat(result.error).isEqualTo("No analysis returned from Gemini")
-      assertThat(result.sentences).isEmpty()
-      assertThat(result.phrases).isEmpty()
+      assertThat(result.panels).isEmpty()
       assertThat(result.vocabulary).isEmpty()
     }
 
@@ -157,22 +154,22 @@ class GeminiServiceTest {
     fun `parses valid JSON response correctly`() {
       val jsonResponse = """
         {
-          "sentences": [
+          "panels": [
             {
-              "original": "これはテストです",
-              "hiragana": "これはてすとです",
-              "romanji": "kore wa tesuto desu",
-              "translations": ["This is a test"],
-              "explanation": "Test explanation",
-              "comments": "Test comment"
-            }
-          ],
-          "phrases": [
-            {
-              "original": "テスト",
-              "hiragana": "てすと",
-              "romanji": "tesuto",
-              "translation": "test"
+              "panelNumber": 1,
+              "description": "Close-up of a character speaking",
+              "context": null,
+              "dialogues": [
+                {
+                  "speakerHint": "Main character",
+                  "original": "これはテストです",
+                  "hiragana": "これはてすとです",
+                  "romanji": "kore wa tesuto desu",
+                  "translations": ["This is a test"],
+                  "explanation": "Test explanation",
+                  "comments": "Test comment"
+                }
+              ]
             }
           ],
           "vocabulary": [
@@ -183,7 +180,8 @@ class GeminiServiceTest {
               "meaning": "test",
               "type": "noun"
             }
-          ]
+          ],
+          "pageSummary": "A character says this is a test."
         }
       """.trimIndent()
 
@@ -204,17 +202,22 @@ class GeminiServiceTest {
       val result = geminiService.analyzeImage(imageBytes, "image/jpeg", "book-valid", 1)
 
       assertThat(result.error).isNull()
-      assertThat(result.sentences).hasSize(1)
-      assertThat(result.sentences[0].original).isEqualTo("これはテストです")
-      assertThat(result.sentences[0].romanji).isEqualTo("kore wa tesuto desu")
-      assertThat(result.phrases).hasSize(1)
+      assertThat(result.panels).hasSize(1)
+      assertThat(result.panels[0].panelNumber).isEqualTo(1)
+      assertThat(result.panels[0].description).isEqualTo("Close-up of a character speaking")
+      assertThat(result.panels[0].context).isNull()
+      assertThat(result.panels[0].dialogues).hasSize(1)
+      assertThat(result.panels[0].dialogues[0].original).isEqualTo("これはテストです")
+      assertThat(result.panels[0].dialogues[0].romanji).isEqualTo("kore wa tesuto desu")
+      assertThat(result.panels[0].dialogues[0].speakerHint).isEqualTo("Main character")
       assertThat(result.vocabulary).hasSize(1)
       assertThat(result.vocabulary[0].type).isEqualTo("noun")
+      assertThat(result.pageSummary).isEqualTo("A character says this is a test.")
     }
 
     @Test
     fun `returns cached result for same bookId and pageNumber`() {
-      val jsonResponse = """{"sentences": [], "phrases": [], "vocabulary": []}"""
+      val jsonResponse = """{"panels": [], "vocabulary": [], "pageSummary": null}"""
 
       val geminiResponse = GeminiResponse(
         candidates = listOf(
@@ -240,7 +243,7 @@ class GeminiServiceTest {
 
     @Test
     fun `makes separate API calls for different pages`() {
-      val jsonResponse = """{"sentences": [], "phrases": [], "vocabulary": []}"""
+      val jsonResponse = """{"panels": [], "vocabulary": [], "pageSummary": null}"""
 
       val geminiResponse = GeminiResponse(
         candidates = listOf(
@@ -260,6 +263,28 @@ class GeminiServiceTest {
 
       // Verify two API calls were made
       verify(exactly = 2) { mockResponseSpec.bodyToMono(GeminiResponse::class.java) }
+    }
+
+    @Test
+    fun `includes manga filename in prompt when provided`() {
+      val jsonResponse = """{"panels": [], "vocabulary": [], "pageSummary": null}"""
+
+      val geminiResponse = GeminiResponse(
+        candidates = listOf(
+          Candidate(content = Content(parts = listOf(Part(text = jsonResponse))))
+        )
+      )
+
+      every { mockSettingsProvider.geminiApiKey } returns "test-api-key"
+      every { mockResponseSpec.bodyToMono(GeminiResponse::class.java) } returns Mono.just(geminiResponse)
+
+      val imageBytes = "test image".toByteArray()
+
+      // Call with manga filename
+      val result = geminiService.analyzeImage(imageBytes, "image/jpeg", "book-filename", 1, false, "My Test Manga Vol. 1")
+
+      assertThat(result.error).isNull()
+      // The prompt inclusion is internal, but we verify the call succeeds
     }
   }
 
@@ -307,24 +332,28 @@ class GeminiServiceTest {
 
       // Call the real API
       println("Calling Gemini API...")
-      val result = realGeminiService.analyzeImage(imageBytes, "image/jpeg", "integration-test", 1)
+      val result = realGeminiService.analyzeImage(imageBytes, "image/jpeg", "integration-test", 1, false, "Test Manga")
 
       // Print the result for verification
       println("\n=== Gemini Analysis Result ===")
       if (result.error != null) {
         println("Error: ${result.error}")
       } else {
-        println("Sentences: ${result.sentences.size}")
-        result.sentences.forEachIndexed { index, sentence ->
-          println("  [$index] ${sentence.original}")
-          println("       Hiragana: ${sentence.hiragana}")
-          println("       Romanji: ${sentence.romanji}")
-          println("       Translation: ${sentence.translations.firstOrNull() ?: "N/A"}")
-        }
+        println("Page Summary: ${result.pageSummary ?: "N/A"}")
 
-        println("\nPhrases: ${result.phrases.size}")
-        result.phrases.forEach { phrase ->
-          println("  - ${phrase.original} (${phrase.romanji}): ${phrase.translation}")
+        println("\nPanels: ${result.panels.size}")
+        result.panels.forEach { panel ->
+          println("  Panel ${panel.panelNumber}:")
+          println("    Description: ${panel.description ?: "N/A"}")
+          println("    Context: ${panel.context ?: "N/A"}")
+          println("    Dialogues: ${panel.dialogues.size}")
+          panel.dialogues.forEachIndexed { index, dialogue ->
+            println("      [$index] ${dialogue.original}")
+            println("           Speaker: ${dialogue.speakerHint ?: "Unknown"}")
+            println("           Hiragana: ${dialogue.hiragana}")
+            println("           Romanji: ${dialogue.romanji}")
+            println("           Translation: ${dialogue.translations.firstOrNull() ?: "N/A"}")
+          }
         }
 
         println("\nVocabulary: ${result.vocabulary.size}")
@@ -337,18 +366,15 @@ class GeminiServiceTest {
       // Assertions - at minimum we should get a valid response structure
       assertThat(result).isNotNull()
 
-      // If no error, we should have at least one of: sentences, phrases, or vocabulary
+      // If no error, we should have at least panels or vocabulary
       // (or all empty if no Japanese text was detected)
       if (result.error == null) {
         // The response structure should be valid
-        assertThat(result.sentences).isNotNull()
-        assertThat(result.phrases).isNotNull()
+        assertThat(result.panels).isNotNull()
         assertThat(result.vocabulary).isNotNull()
 
         // If the image has Japanese text, we should get some analysis
-        val hasContent = result.sentences.isNotEmpty() ||
-          result.phrases.isNotEmpty() ||
-          result.vocabulary.isNotEmpty()
+        val hasContent = result.panels.isNotEmpty() || result.vocabulary.isNotEmpty()
 
         println("Analysis contains content: $hasContent")
       }

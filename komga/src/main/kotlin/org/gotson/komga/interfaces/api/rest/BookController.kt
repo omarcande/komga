@@ -561,9 +561,12 @@ class BookController(
       throw ResponseStatusException(HttpStatus.NOT_FOUND, "Book analysis not ready")
     }
 
+    val bookMetadata = bookMetadataRepository.findByIdOrNull(bookId)
+    val mangaFilename = bookMetadata?.title ?: book.name
+
     return try {
       val pageContent = bookLifecycle.getBookPage(book, pageNumber)
-      geminiService.analyzeImage(pageContent.bytes, pageContent.mediaType ?: "image/jpeg", bookId, pageNumber, refresh)
+      geminiService.analyzeImage(pageContent.bytes, pageContent.mediaType ?: "image/jpeg", bookId, pageNumber, refresh, mangaFilename)
     } catch (ex: IndexOutOfBoundsException) {
       throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Page number does not exist")
     } catch (ex: MediaNotReadyException) {

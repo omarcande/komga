@@ -40,6 +40,7 @@ class GeminiService(
     bookId: String,
     pageNumber: Int,
     refresh: Boolean = false,
+    mangaFilename: String? = null,
   ): GeminiAnalysisDto {
     val cacheKey = "$bookId-$pageNumber"
 
@@ -48,18 +49,22 @@ class GeminiService(
     }
 
     return cache.get(cacheKey) {
-      performAnalysis(imageBytes, mimeType)
+      performAnalysis(imageBytes, mimeType, pageNumber, mangaFilename)
     }!!
   }
 
   private fun performAnalysis(
     imageBytes: ByteArray,
     mimeType: String,
+    pageNumber: Int,
+    mangaFilename: String?,
   ): GeminiAnalysisDto {
     val apiKey = komgaSettingsProvider.geminiApiKey ?: throw IllegalStateException("Gemini API key not configured")
     val model = GEMINI_MODEL
 
     val base64Image = Base64.getEncoder().encodeToString(imageBytes)
+
+    val prompt = buildPrompt(pageNumber, mangaFilename)
 
     val requestBody =
       mapOf(
@@ -68,7 +73,7 @@ class GeminiService(
             mapOf(
               "parts" to
                 listOf(
-                  mapOf("text" to ANALYSIS_PROMPT),
+                  mapOf("text" to prompt),
                   mapOf(
                     "inline_data" to
                       mapOf(
@@ -126,60 +131,109 @@ class GeminiService(
     }
   }
 
+  private fun buildPrompt(
+    pageNumber: Int,
+    mangaFilename: String?,
+  ): String {
+    val contextLine =
+      if (mangaFilename != null) {
+        "You are analyzing page $pageNumber of the manga: $mangaFilename\n\n"
+      } else {
+        "You are analyzing page $pageNumber of a manga.\n\n"
+      }
+    return contextLine + ANALYSIS_PROMPT
+  }
+
   companion object {
     const val GEMINI_MODEL = "gemini-2.5-flash"
     const val ANALYSIS_PROMPT =
-      """You are a Japanese language tutor analyzing a page from a manga.
-
-Analyze any Japanese text visible in this image and return your analysis as a JSON object.
+      """You are a Japanese language tutor analyzing a page from a manga. Your task is to identify panels and extract dialogue while preserving the conversation flow.
 
 IMPORTANT: You MUST return ONLY valid JSON. Do not include any markdown, explanations, or text outside the JSON structure.
 
 Return the following JSON structure:
 
 {
-  "sentences": [
+  "panels": [
     {
-      "original": "The original Japanese sentence exactly as shown",
-      "hiragana": "Full sentence converted to hiragana for reading practice",
-      "romanji": "Full romanized version using Hepburn romanization",
-      "translations": ["Primary English translation", "Alternative translation if applicable"],
-      "explanation": "Markdown-formatted grammar breakdown (see guidelines below)",
-      "comments": "Cultural context, game-specific context, formality level, or other relevant notes"
-    }
-  ],
-  "phrases": [
-    {
-      "original": "Japanese phrase (2+ words that form a unit but not a complete sentence)",
-      "hiragana": "Hiragana reading",
-      "romanji": "Romanized version",
-      "translation": "English meaning"
+      "panelNumber": 1,
+      "description": "Brief visual description of the panel",
+      "context": null,
+      "dialogues": [
+        {
+          "speakerHint": "Character name or description (optional)",
+          "original": "Japanese dialogue exactly as shown",
+          "hiragana": "Full dialogue converted to hiragana",
+          "romanji": "Romanized version using Hepburn romanization",
+          "translations": ["English translation"],
+          "explanation": "Markdown-formatted grammar breakdown",
+          "comments": "Cultural context, tone, or other notes"
+        }
+      ]
     }
   ],
   "vocabulary": [
     {
-      "original": "Individual word or kanji",
+      "original": "Individual word",
       "hiragana": "Hiragana reading",
       "romanji": "Romanization",
-      "meaning": "English definition(s)",
-      "type": "noun OR verb OR adjective OR adverb"
+      "meaning": "English definition",
+      "type": "noun|verb|adjective|adverb"
     }
-  ]
+  ],
+  "pageSummary": "1-2 sentence summary of what happens on this page"
 }
 
-Guidelines:
+## Field Definitions
 
-1. SENTENCES: Complete grammatical sentences with subject/verb. For the explanation field, use markdown formatting with bullet points for each word:
-   - Start each word breakdown with "- " (dash space)
-   - Bold the Japanese word using **word**
-   - Include reading in parentheses
-   - Explain the meaning and grammatical role
-   Example explanation value:
-   "- **この** (kono) - 'this' - demonstrative adjective modifying the noun\\n- **リスト** (risuto) - 'list' - noun, loanword from English\\n- **に** (ni) - location particle indicating where something exists\\n- **は** (wa) - topic marker, emphasizes the list as the topic"
+### Panel Level Fields
 
-2. PHRASES: Multi-word expressions that aren't complete sentences (e.g., menu items, labels, compound expressions).
+**panelNumber** (required): Reading order number starting from 1. For Japanese manga, read right-to-left, top-to-bottom.
 
-3. VOCABULARY: Extract unique CONTENT WORDS only from the detected text. Include ONLY:
+**description** (required): Brief visual description of what's happening in the panel.
+- Always provide a non-empty string
+- Examples: "Close-up of a girl looking surprised", "Two characters talking in a classroom"
+
+**context** (required for panels 2+): Explains how this panel relates to previous panels.
+- Use null ONLY for the first panel
+- For all other panels, provide a non-empty string
+- Examples: "Response to the question in panel 1", "Continuing the explanation", "New scene - character is now alone"
+
+### Dialogue Level Fields
+
+**speakerHint** (optional): Identifies who is speaking.
+- Use null if only one character speaks or speaker is unclear
+- Use character name if known from context
+- Use descriptive identifier if name unknown: "Girl with long hair", "Boy 1", "Teacher", "Narrator"
+
+**original** (required): The exact Japanese text as shown in the speech bubble.
+
+**hiragana** (required): Full dialogue converted to hiragana for reading practice.
+
+**romanji** (required): Romanized version using Hepburn romanization.
+
+**translations** (required): Array with primary English translation, optionally with alternatives.
+
+**explanation** (required): Grammar breakdown using markdown formatting with bullet points:
+- Start each word breakdown with "- " (dash space)
+- Bold the Japanese word using **word**
+- Include reading in parentheses
+- Explain meaning and grammatical role
+Example: "- **この** (kono) - 'this' - demonstrative adjective\\n- **本** (hon) - 'book' - noun\\n- **を** (wo) - object marker particle"
+
+**comments** (optional): Cultural context, formality level, tone notes, or other relevant information.
+
+## Guidelines
+
+1. PANELS: Identify each distinct panel in reading order. Japanese manga reads right-to-left, top-to-bottom.
+
+2. DIALOGUES: Extract all speech bubbles within each panel, in reading order. Include:
+   - Character dialogue
+   - Thought bubbles
+   - Narration boxes
+   - Sound effects with meaning (if textual)
+
+3. VOCABULARY: Extract unique CONTENT WORDS from all dialogues. Include ONLY:
    - Nouns (type: "noun")
    - Verbs in dictionary form (type: "verb")
    - I-adjectives and na-adjectives (type: "adjective")
@@ -193,9 +247,12 @@ Guidelines:
 
    DEDUPLICATE - each word should appear only once.
 
-4. If no Japanese text is visible, return: {"sentences": [], "phrases": [], "vocabulary": [], "error": "No Japanese text detected in image."}
+4. PAGE SUMMARY: Write 1-2 sentences summarizing the narrative content of the page.
 
-5. Always include all three arrays (sentences, phrases, vocabulary), never omit them.
+5. If no Japanese text is visible, return:
+   {"panels": [], "vocabulary": [], "pageSummary": null, "error": "No Japanese text detected in image."}
+
+6. Always include all required arrays (panels, vocabulary), never omit them.
 
 Return ONLY the JSON object, no additional text."""
   }
