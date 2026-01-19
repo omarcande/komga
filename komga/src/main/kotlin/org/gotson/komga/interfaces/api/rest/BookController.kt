@@ -544,6 +544,7 @@ class BookController(
     @AuthenticationPrincipal principal: KomgaPrincipal,
     @PathVariable bookId: String,
     @PathVariable pageNumber: Int,
+    @RequestParam(required = false, defaultValue = "false") refresh: Boolean,
   ): GeminiAnalysisDto {
     if (!geminiService.isEnabled()) {
       throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Gemini analysis is not configured")
@@ -562,7 +563,7 @@ class BookController(
 
     return try {
       val pageContent = bookLifecycle.getBookPage(book, pageNumber)
-      geminiService.analyzeImage(pageContent.bytes, pageContent.mediaType ?: "image/jpeg", bookId, pageNumber)
+      geminiService.analyzeImage(pageContent.bytes, pageContent.mediaType ?: "image/jpeg", bookId, pageNumber, refresh)
     } catch (ex: IndexOutOfBoundsException) {
       throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Page number does not exist")
     } catch (ex: MediaNotReadyException) {

@@ -1,5 +1,6 @@
 package org.gotson.komga.infrastructure.gemini
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.benmanes.caffeine.cache.Caffeine
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -38,8 +39,13 @@ class GeminiService(
     mimeType: String,
     bookId: String,
     pageNumber: Int,
+    refresh: Boolean = false,
   ): GeminiAnalysisDto {
     val cacheKey = "$bookId-$pageNumber"
+
+    if (refresh) {
+      cache.invalidate(cacheKey)
+    }
 
     return cache.get(cacheKey) {
       performAnalysis(imageBytes, mimeType)
@@ -108,7 +114,12 @@ class GeminiService(
 
       logger.debug { "Gemini response: $textContent" }
 
-      return objectMapper.readValue(textContent, GeminiAnalysisDto::class.java)
+      return try {
+        objectMapper.readValue(textContent, GeminiAnalysisDto::class.java)
+      } catch (e: JsonProcessingException) {
+        logger.warn(e) { "Failed to parse Gemini response as JSON: $textContent" }
+        GeminiAnalysisDto(error = "Failed to parse AI response. The AI returned an invalid format. Please try again.")
+      }
     } catch (e: Exception) {
       logger.error(e) { "Error calling Gemini API" }
       return GeminiAnalysisDto(error = "Error analyzing image: ${e.message}")

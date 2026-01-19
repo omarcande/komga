@@ -183,6 +183,9 @@ export default Vue.extend({
     value(val) {
       if (val && (this.analysis === null || this.pageNumber !== this.lastPageNumber)) {
         this.fetchAnalysis()
+      } else if (!val) {
+        // Dialog is closing, cancel any pending request
+        this.$komgaGemini.cancelPendingRequest()
       }
     },
     pageNumber(val) {
@@ -194,13 +197,17 @@ export default Vue.extend({
     },
   },
   methods: {
-    async fetchAnalysis() {
+    async fetchAnalysis(refresh: boolean = false) {
       this.loading = true
       this.error = null
       this.lastPageNumber = this.pageNumber
       try {
-        this.analysis = await this.$komgaGemini.analyzeBookPage(this.bookId, this.pageNumber)
+        this.analysis = await this.$komgaGemini.analyzeBookPage(this.bookId, this.pageNumber, refresh)
       } catch (e: any) {
+        // Ignore cancelled requests - they're intentional
+        if (e.message === 'REQUEST_CANCELLED') {
+          return
+        }
         this.error = e.message
       } finally {
         this.loading = false
@@ -208,7 +215,7 @@ export default Vue.extend({
     },
     refresh() {
       this.analysis = null
-      this.fetchAnalysis()
+      this.fetchAnalysis(true)
     },
     renderMarkdown(text: string): string {
       if (!text) return ''
