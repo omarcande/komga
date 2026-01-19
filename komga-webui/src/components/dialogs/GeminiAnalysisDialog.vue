@@ -74,7 +74,8 @@
                             <v-chip
                               v-if="dialogue.speakerHint"
                               x-small
-                              color="secondary"
+                              :color="getSpeakerColor(dialogue.speakerHint)"
+                              text-color="white"
                               class="mr-2"
                             >
                               {{ dialogue.speakerHint }}
@@ -132,7 +133,12 @@
                   <div class="d-flex align-center">
                     <span class="text-subtitle-1 japanese-text mr-2">{{ vocab.original }}</span>
                     <span class="text-caption mr-2">({{ vocab.hiragana }})</span>
-                    <v-chip x-small color="primary" outlined class="mr-2">
+                    <v-chip
+                      x-small
+                      :color="getVocabTypeColor(vocab.type)"
+                      text-color="white"
+                      class="mr-2"
+                    >
                       {{ vocab.type }}
                     </v-chip>
                   </div>
@@ -167,6 +173,40 @@ import Vue from 'vue'
 import {marked} from 'marked'
 import {GeminiAnalysisDto} from '@/types/komga-gemini'
 
+// Dark colors that work well with white text
+const SPEAKER_COLORS = [
+  '#6B4C9A', // Purple
+  '#2E7D32', // Green
+  '#C62828', // Red
+  '#1565C0', // Blue
+  '#EF6C00', // Orange
+  '#00838F', // Cyan
+  '#AD1457', // Pink
+  '#4527A0', // Deep Purple
+  '#00695C', // Teal
+  '#D84315', // Deep Orange
+  '#5D4037', // Brown
+  '#37474F', // Blue Grey
+]
+
+const VOCAB_TYPE_COLORS: Record<string, string> = {
+  noun: '#1565C0',      // Blue
+  verb: '#2E7D32',      // Green
+  adjective: '#C62828', // Red
+  adverb: '#6B4C9A',    // Purple
+}
+
+// Simple hash function for consistent color assignment
+function hashString(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32-bit integer
+  }
+  return Math.abs(hash)
+}
+
 export default Vue.extend({
   name: 'GeminiAnalysisDialog',
   props: {
@@ -187,7 +227,11 @@ export default Vue.extend({
     loading: false,
     error: null as string | null,
     analysis: null as GeminiAnalysisDto | null,
-    lastPageNumber: 0,
+    // Cache analysis results per page for instant navigation
+    pageCache: {} as Record<string, GeminiAnalysisDto>,
+    // Track speaker colors for consistency within a session
+    speakerColorMap: {} as Record<string, string>,
+    nextColorIndex: 0,
   }),
   computed: {
     input: {
@@ -205,31 +249,60 @@ export default Vue.extend({
         (this.analysis.vocabulary?.length ?? 0) > 0
       )
     },
+    cacheKey(): string {
+      return `${this.bookId}-${this.pageNumber}`
+    },
   },
   watch: {
     value(val) {
-      if (val && (this.analysis === null || this.pageNumber !== this.lastPageNumber)) {
-        this.fetchAnalysis()
-      } else if (!val) {
+      if (val) {
+        this.loadAnalysis()
+      } else {
         // Dialog is closing, cancel any pending request
         this.$komgaGemini.cancelPendingRequest()
       }
     },
-    pageNumber(val) {
-      if (this.value && val !== this.lastPageNumber) {
-        this.analysis = null
-        this.error = null
-        this.fetchAnalysis()
+    pageNumber() {
+      if (this.value) {
+        this.loadAnalysis()
+      }
+    },
+    bookId() {
+      // Clear cache when switching books
+      this.pageCache = {}
+      this.speakerColorMap = {}
+      this.nextColorIndex = 0
+      if (this.value) {
+        this.loadAnalysis()
       }
     },
   },
   methods: {
+    loadAnalysis() {
+      // Check if we have a cached result for this page
+      const cached = this.pageCache[this.cacheKey]
+      if (cached) {
+        this.analysis = cached
+        this.error = null
+        return
+      }
+      // No cache, fetch from API
+      this.fetchAnalysis()
+    },
     async fetchAnalysis(refresh: boolean = false) {
       this.loading = true
       this.error = null
-      this.lastPageNumber = this.pageNumber
+
+      if (refresh) {
+        // Remove from local cache on refresh
+        delete this.pageCache[this.cacheKey]
+      }
+
       try {
-        this.analysis = await this.$komgaGemini.analyzeBookPage(this.bookId, this.pageNumber, refresh)
+        const result = await this.$komgaGemini.analyzeBookPage(this.bookId, this.pageNumber, refresh)
+        this.analysis = result
+        // Store in local cache
+        this.pageCache[this.cacheKey] = result
       } catch (e: any) {
         // Ignore cancelled requests - they're intentional
         if (e.message === 'REQUEST_CANCELLED') {
@@ -247,6 +320,24 @@ export default Vue.extend({
     renderMarkdown(text: string): string {
       if (!text) return ''
       return marked.parse(text) as string
+    },
+    getSpeakerColor(speaker: string): string {
+      if (!speaker) return SPEAKER_COLORS[0]
+
+      // Check if we already assigned a color to this speaker
+      if (this.speakerColorMap[speaker]) {
+        return this.speakerColorMap[speaker]
+      }
+
+      // Use hash-based color for consistency
+      const hash = hashString(speaker)
+      const color = SPEAKER_COLORS[hash % SPEAKER_COLORS.length]
+      this.speakerColorMap[speaker] = color
+      return color
+    },
+    getVocabTypeColor(type: string): string {
+      const normalizedType = type?.toLowerCase() || ''
+      return VOCAB_TYPE_COLORS[normalizedType] || '#455A64' // Default to blue-grey
     },
   },
 })
